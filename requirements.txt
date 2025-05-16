@@ -1,0 +1,4 @@
+selenium>=4.10.0
+cloudscraper>=1.2.69
+requests>=2.31.0
+eth-account>=0.8.0 
