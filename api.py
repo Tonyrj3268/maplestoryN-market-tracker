@@ -220,10 +220,12 @@ def buy_item_api(driver, tokenId, tokenAmount):
         transaction_result_code = get_transaction_result(transactionId, cookies)
         for _ in range(6):
             if transaction_result_code == 2:
+                # Transaction status: 2 means success
                 return True
-            else:
-                time.sleep(1.5)
-
+            
+            # Transaction status: 3 means error or waiting
+            time.sleep(1.5)
+        
         return False
 
     except json.JSONDecodeError as e:

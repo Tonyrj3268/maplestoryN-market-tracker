@@ -57,8 +57,8 @@ except Exception as e:
 PET_FILTERS = [
     [{"Magnet Effect"}, 385501],
     [{"Auto Buff"}, 385501],
-    [{"Expanded Auto Move", "Auto Move"}, 10000],
-    [set({}), 1000]  # 完全不符合
+    [{"Expanded Auto Move", "Auto Move"}, 100000],
+    [set({}), 40000]  # 完全不符合
 ]
 
 # 多裝備監控模式的預設價格上限

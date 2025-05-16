@@ -14,16 +14,6 @@ def main():
     # 確保設定檔存在
     if not os.path.exists('config.json'):
         print("錯誤: 找不到config.json檔案")
-        print("請先建立設定檔 config.json，包含以下必要欄位")
-        sample_config = '''{
-            "private_key": "你的錢包私鑰",
-            "metamask_pasw": "你的MetaMask密碼",
-            "chrome_path": "C:\\Users\\你的使用者名稱\\路徑\\到\\chromium資料夾\\chrome執行檔",
-            "chromedriver_path": "C:\\Users\\你的使用者名稱\\路徑\\到\\chromium資料夾\\chromedriver執行檔",
-            "user_data_dir": "C:\\Users\\你的使用者名稱\\AppData\\Local\\Chromium\\User Data",
-            "wallet": "0x你的錢包地址"
-        }'''
-        print(f"範例設定:\n{sample_config}")
         return
 
     # 初始化驅動程式

@@ -7,6 +7,18 @@ from driver import connect_wallet_to_website
 def auto_buy_pet(driver):
     """自動購買寵物"""
     print("開始自動購買寵物模式")
+    
+    # 顯示篩選條件
+    print("\n寵物篩選條件:")
+    print("┌─────────────────────────────────┬───────────┐")
+    print("│ 技能組合                        │ 價格上限  │")
+    print("├─────────────────────────────────┼───────────┤")
+    for filter_set in config.PET_FILTERS:
+        skills = ", ".join(filter_set[0]) if filter_set[0] else "None"
+        price_limit = filter_set[1]
+        print(f"│ {skills:<31} │ {price_limit:<9} │")
+    print("└─────────────────────────────────┴───────────┘\n")
+    
     # 上次擷取到的寵物ID
     last_pet_token_id = None
 
@@ -31,22 +43,32 @@ def auto_buy_pet(driver):
                 continue
 
             pet_skills = set(skill_info)
-            print(f"寵物 {tokenId} 技能: {pet_skills}")
+            # 格式化顯示寵物技能
+            skills_text = ", ".join(pet_skills)
+            if len(skills_text) > 40:
+                skills_text = skills_text[:37] + "..."
+            print(f"寵物ID: {tokenId:<10} | 技能: {skills_text:<40}")
             
             for filter_set in config.PET_FILTERS:
                 # 檢查 filter_set 是否在 pet_skills 中
                 if filter_set[0].issubset(pet_skills):
                     price = Decimal(pet["salesInfo"]["priceWei"]) / config.WEI_PER_ETHER
-                    print(f"價格: {price}")
+                    price_limit = filter_set[1]
+                    print(f"匹配條件: {', '.join(filter_set[0]) if filter_set[0] else '無技能':<20} | 價格: {price:<8} | 上限: {price_limit:<8}")
+                    
                     rounded_price = round(price, 1)
-                    if rounded_price <= filter_set[1]:
-                        formatted_skills = "\\n".join(filter_set[0])
-                        message = f"\\n發現高價值寵物\\n價格: ${price}\\n技能:\\n{formatted_skills}\\nhttps://msu.io/marketplace/nft/{tokenId}"
-                        print(message)
+                    if rounded_price <= price_limit:
+                        print("-" * 70)
+                        print(f"發現高價值寵物!")
+                        print(f"ID: {tokenId}")
+                        print(f"價格: {price} (上限: {price_limit})")
+                        print(f"技能: {', '.join(pet_skills)}")
+                        print(f"連結: https://msu.io/marketplace/nft/{tokenId}")
+                        print("-" * 70)
                 
                         result = buy_item_api(driver, tokenId, pet["salesInfo"]["priceWei"])
                         if result:
-                            print("已購買成功")
+                            print(f"已成功購買寵物 (ID: {tokenId})")
                             
                         driver.get(f"https://msu.io/marketplace/inventory/{config.WALLET}")
                         break
@@ -60,10 +82,10 @@ def auto_buy_pet(driver):
         connect_wallet_to_website(driver)
 
 def auto_buy_multiple_equipment(driver):
-    """自動購買多個裝備，使用config中的EQUIPMENT_MONITOR_LIST"""
+    """自動監測多個裝備，使用config中的EQUIPMENT_MONITOR_LIST"""
     equipment_list = list(config.EQUIPMENT_MONITOR_LIST.keys())
     
-    print(f"開始自動購買多裝備模式: 監測 {len(equipment_list)} 個裝備")
+    print(f"開始自動監測多裝備模式: 監測 {len(equipment_list)} 個裝備")
     
     # 顯示監控的裝備和價格上限
     equipment_price_limits = {
@@ -71,8 +93,14 @@ def auto_buy_multiple_equipment(driver):
         for name, price in config.EQUIPMENT_MONITOR_LIST.items()
     }
     
+    # 格式化顯示監控的裝備和價格上限
+    print("\n監控裝備清單:")
+    print("┌─────────────────────────────────┬───────────┐")
+    print("│ 裝備名稱                        │ 價格上限  │")
+    print("├─────────────────────────────────┼───────────┤")
     for name, price in equipment_price_limits.items():
-        print(f"  - {name}: 價格上限 {price}")
+        print(f"│ {name:<31} │ {price:<9} │")
+    print("└─────────────────────────────────┴───────────┘\n")
     
     # 用於儲存已處理過的裝備ID
     processed_ids = set()
@@ -125,11 +153,17 @@ def auto_buy_multiple_equipment(driver):
                     # 獲取價格上限
                     price_limit = equipment_price_limits[equip_name]
                     
-                    print(f"裝備: '{item_name}' | 價格: {price} | 上限: {price_limit}")
+                    # 使用固定寬度格式化輸出
+                    print(f"裝備: {item_name:<30} | 價格: {price:<8} | 上限: {price_limit:<8}")
                     
                     # 如果價格低於上限，嘗試購買
                     if price <= price_limit:
-                        print(f"發現符合條件的裝備 | {item_name} | 價格: {price} | https://msu.io/marketplace/nft/{token_id}")
+                        print("-" * 70)
+                        print(f"發現符合條件的裝備!")
+                        print(f"名稱: {item_name}")
+                        print(f"價格: {price} (上限: {price_limit})")
+                        print(f"連結: https://msu.io/marketplace/nft/{token_id}")
+                        print("-" * 70)
                         
                         if buy_item_api(driver, token_id, price_wei):
                             print(f"已成功購買 {item_name}")
