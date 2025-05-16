@@ -6,8 +6,8 @@ from api import initialize_authentication, start_authentication_checker
 def main():
     """主程式入口"""
     parser = argparse.ArgumentParser(description='楓之谷N市集自動化交易工具')
-    parser.add_argument('--mode', type=str, choices=['pet', 'multi_equipment'], 
-                      default='pet', help='選擇執行模式: pet (寵物) 或 multi_equipment (多裝備同時監控)')
+    parser.add_argument('--mode', type=str, choices=['pet', 'equipment'], 
+                      default='pet', help='選擇執行模式: pet (寵物) 或 equipment (多裝備同時監控)')
     parser.add_argument('--auth-check-interval', type=int, default=5,
                       help='認證狀態檢查間隔時間（分鐘），預設5分鐘')
     
@@ -28,7 +28,7 @@ def main():
         # 根據選擇的模式執行相應的功能
         if args.mode == 'pet':
             auto_buy_pet()
-        elif args.mode == 'multi_equipment':
+        elif args.mode == 'equipment':
             print("啟動多裝備監控模式")
             print("注意: 多裝備模式將同時監控 config.py 中 EQUIPMENT_MONITOR_LIST 設定的所有裝備")
             print("      每種裝備可以設定各自的價格上限")
