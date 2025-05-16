@@ -74,7 +74,7 @@ python main.py --mode pet
 ### 監控多種裝備
 
 ```bash
-python main.py --mode multi_equipment
+python main.py --mode equipment
 ```
 
 此模式會同時監控 `config.py` 中 `EQUIPMENT_MONITOR_LIST` 設定的所有裝備，大幅減少 API 呼叫次數，提高效率。對每個裝備使用其對應的價格上限進行判斷，如果沒有指定價格上限（設為None），則使用 `DEFAULT_EQUIPMENT_PRICE_LIMIT` 的值。

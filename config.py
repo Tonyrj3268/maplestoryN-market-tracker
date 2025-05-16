@@ -60,7 +60,7 @@ DEFAULT_EQUIPMENT_PRICE_LIMIT = 380000
 # 多裝備監控列表：設定要監控的裝備名稱及對應的價格上限
 # 格式: "裝備名稱": 價格上限
 # 使用方式:
-#   1. 使用 python main.py --mode multi_equipment 啟動多裝備監控模式
+#   1. 使用 python main.py --mode equipment 啟動多裝備監控模式
 #   2. 系統會同時監控下列所有裝備
 #   3. 當市場上出現包含下列名稱的裝備，且價格低於設定的上限時，將自動購買
 #   4. 若某裝備的價格上限設為None，則會使用DEFAULT_EQUIPMENT_PRICE_LIMIT作為上限
