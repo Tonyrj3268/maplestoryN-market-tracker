@@ -105,9 +105,8 @@ def auto_buy_multiple_equipment():
         print(f"│ {name:<31} │ {price:<9} │")
     print("└─────────────────────────────────┴───────────┘\n")
     
-    # 用於儲存已處理過的裝備ID
-    processed_ids = set()
-    last_token_id = None
+    # 上次擷取到的裝備ID
+    last_item_token_id = None
     
     while True:
         try:
@@ -116,34 +115,22 @@ def auto_buy_multiple_equipment():
             if all_items is None:
                 time.sleep(3)
                 continue
+            else:
+                all_items = all_items["items"]
+                first_item_id = all_items[0]["tokenId"] if all_items else None
             
-            all_items = all_items["items"]
-            
-            # 檢查是否有新裝備
-            if all_items and last_token_id == all_items[0]["tokenId"]:
-                # 沒有新裝備，等待下一次查詢
+            # 如果沒有裝備，則等待下一次查詢
+            if not all_items:
                 time.sleep(8)
                 continue
             
-            # 更新最新裝備ID
-            if all_items:
-                last_token_id = all_items[0]["tokenId"]
-            
-            # 處理每個新裝備
             for item in all_items:
                 item_name = item.get("name", "")
                 token_id = item["tokenId"]
                 
-                # 跳過已處理過的裝備ID
-                if token_id in processed_ids:
-                    continue
-                
-                # 添加到已處理ID集合
-                processed_ids.add(token_id)
-                
-                # 限制已處理ID集合大小
-                if len(processed_ids) > 1000:
-                    processed_ids = set(list(processed_ids)[-500:])
+                # 遇到上一次擷取過的裝備就停止
+                if last_item_token_id == token_id:
+                    break
                 
                 # 計算價格 (Wei → 遊戲幣)
                 price_wei = item["salesInfo"]["priceWei"]
@@ -170,6 +157,9 @@ def auto_buy_multiple_equipment():
                             if buy_item_api(token_id, price_wei):
                                 print(f"已成功購買 {item_name}")
                             break
+            
+            # 更新上次擷取的第一個裝備ID
+            last_item_token_id = first_item_id
             
             # 適當休息，避免頻繁API呼叫
             time.sleep(8)

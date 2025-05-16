@@ -221,7 +221,7 @@ def get_transaction_result(transactionId):
 def fetch_all_pets():
     """取得所有寵物列表"""
     url = "https://msu.io/marketplace/api/marketplace/explore/items"
-    fetch_amount = 20
+    fetch_amount = 15
     payload = {
         "filter": {
             "categoryNo": 1000401001,
