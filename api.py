@@ -2,15 +2,176 @@ import time
 import json
 import cloudscraper
 import requests
+import threading
 from datetime import datetime, timedelta, timezone
 from eth_account import Account
-from eth_account.messages import encode_typed_data
+from eth_account.messages import encode_typed_data, encode_defunct
 import config
-from driver import get_cookies_from_selenium
 
-def fetch_url_using_cloudscraper(method: str, url: str, payload=None):
-    """使用cloudscraper發送請求並處理錯誤"""
+# 全局變數，保存已認證的scraper實例
+_AUTHENTICATED_SCRAPER = None
+_LAST_AUTH_TIME = None
+_REGULAR_SCRAPER = None
+_AUTH_LOCK = threading.Lock()  # 用於確保認證操作的線程安全
+
+# 初始化認證（在程式啟動時調用）
+def initialize_authentication():
+    """初始化認證，預先獲取認證會話"""
+    global _AUTHENTICATED_SCRAPER
+    try:
+        print("正在初始化認證會話...")
+        _AUTHENTICATED_SCRAPER = create_authenticated_scraper()
+        print("認證會話初始化完成")
+        return True
+    except Exception as e:
+        print(f"初始化認證失敗: {e}")
+        return False
+
+# 檢查認證狀態並在需要時重新驗證
+def check_and_refresh_authentication():
+    """檢查認證狀態，如果過期則重新認證"""
+    global _AUTHENTICATED_SCRAPER
+    
+    with _AUTH_LOCK:  # 使用鎖，確保同一時間只有一個線程修改認證狀態
+        if _AUTHENTICATED_SCRAPER is None:
+            print("認證會話不存在，正在創建新會話...")
+            try:
+                _AUTHENTICATED_SCRAPER = create_authenticated_scraper()
+                print("已創建新的認證會話")
+                return True
+            except Exception as e:
+                print(f"創建認證會話失敗: {e}")
+                return False
+        
+        try:
+            # 使用mypage/settings頁面檢查認證狀態
+            test_url = "https://msu.io/mypage/settings"
+            response = _AUTHENTICATED_SCRAPER.get(test_url, allow_redirects=False)
+            
+            # 如果是200，表示認證有效
+            if response.status_code == 200:
+                print("認證會話狀態檢查：有效")
+                return True
+            else:
+                print(f"認證會話已過期 (狀態碼: {response.status_code})，重新認證中...")
+                _AUTHENTICATED_SCRAPER = create_authenticated_scraper()
+                return True
+        except Exception as e:
+            print(f"檢查認證狀態時出錯: {e}，嘗試重新認證...")
+            try:
+                _AUTHENTICATED_SCRAPER = create_authenticated_scraper()
+                return True
+            except:
+                print("重新認證失敗")
+                return False
+
+# 啟動定期檢查認證的線程
+def start_authentication_checker(interval_minutes=5):
+    """啟動一個後台線程，定期檢查並刷新認證狀態
+    
+    Args:
+        interval_minutes: 檢查間隔，單位為分鐘，預設5分鐘
+    """
+    def checker_thread():
+        while True:
+            time.sleep(interval_minutes * 60)  # 轉換為秒
+            print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 定期檢查認證狀態...")
+            check_and_refresh_authentication()
+    
+    # 創建並啟動線程
+    print(f"啟動認證狀態檢查線程 (間隔: {interval_minutes}分鐘)")
+    t = threading.Thread(target=checker_thread, daemon=True)
+    t.start()
+    return t
+
+# 創建或獲取普通scraper（不需認證）
+def get_regular_scraper():
+    """獲取普通的scraper實例（不需認證）"""
+    global _REGULAR_SCRAPER
+    if _REGULAR_SCRAPER is None:
+        _REGULAR_SCRAPER = cloudscraper.create_scraper()
+    return _REGULAR_SCRAPER
+
+def create_authenticated_scraper():
+    """創建已認證的scraper實例，或返回現有的有效實例"""
+    global _AUTHENTICATED_SCRAPER, _LAST_AUTH_TIME
+    
+    # 檢查是否已有有效的scraper實例
+    if _AUTHENTICATED_SCRAPER is not None:
+        # 檢查是否仍然有效
+        try:
+            # 使用mypage/settings頁面檢查認證狀態
+            test_url = "https://msu.io/mypage/settings"
+            response = _AUTHENTICATED_SCRAPER.get(test_url, allow_redirects=False)
+            
+            # 如果是200，表示認證有效；如果是307，表示需要重新登入
+            if response.status_code == 200:
+                return _AUTHENTICATED_SCRAPER
+            else:
+                print(f"會話已過期 (狀態碼: {response.status_code})，重新登入中...")
+        except Exception as e:
+            print(f"檢查會話狀態時出錯: {e}，重新登入中...")
+    
+    # 建立新的scraper實例並進行認證
     scraper = cloudscraper.create_scraper()
+    
+    # 使用config模組讀取設定，保持一致性
+    WALLET_ADDRESS = config.WALLET
+    PRIVATE_KEY = config.PRIVATE_KEY
+    RPC_ENDPOINT = "https://msu.io/marketplace/api/gateway/v1"
+    
+    try:
+        # 1. 拿 challenge message
+        msg_res = scraper.post(f"{RPC_ENDPOINT}/web/message", json={"address": WALLET_ADDRESS})
+        msg_res.raise_for_status()
+        challenge = msg_res.json()["message"]
+        print(f"收到挑戰訊息")
+        
+        # 2. 簽名
+        eip191_msg = encode_defunct(text=challenge)
+        signed = Account.sign_message(eip191_msg, private_key=PRIVATE_KEY)
+        signature = signed.signature.hex()
+        print(f"生成簽名: 0x{signature[:10]}...")
+        
+        # 3. 登入
+        auth_payload = {
+            "address": WALLET_ADDRESS,
+            "signature": "0x" + signature,
+            "walletType": "WALLET_TYPE_METAMASK"
+        }
+        auth_res = scraper.post(f"{RPC_ENDPOINT}/web/signin-wallet", json=auth_payload)
+        
+        # 顯示詳細錯誤
+        if auth_res.status_code != 200:
+            print(f"認證失敗: {auth_res.status_code}")
+            print(f"錯誤內容: {auth_res.text}")
+            raise Exception(f"認證失敗: {auth_res.status_code}")
+            
+        auth_res.raise_for_status()
+        print("認證成功，已取得認證cookies")
+        
+        # 更新全局變數
+        _AUTHENTICATED_SCRAPER = scraper
+        _LAST_AUTH_TIME = datetime.now()
+        
+        return scraper
+        
+    except Exception as e:
+        print(f"認證過程發生錯誤: {e}")
+        raise
+
+def fetch_url_using_cloudscraper(method: str, url: str, payload=None, need_auth=False):
+    """使用cloudscraper發送請求並處理錯誤
+    
+    Args:
+        method: 請求方法，"get" 或 "post"
+        url: 請求URL
+        payload: POST請求的數據
+        need_auth: 是否需要認證，預設為False
+    """
+    # 根據是否需要認證選擇scraper
+    scraper = create_authenticated_scraper() if need_auth else get_regular_scraper()
+    
     try:
         if method == "post":
             response = scraper.post(url, json=payload)
@@ -35,24 +196,14 @@ def fetch_url_using_cloudscraper(method: str, url: str, payload=None):
         print(f"發生意外錯誤: {e}")
         return None
 
-def send_post_with_cookies(url, post_data, cookies):
-    """使用 requests 發送帶有 Cookie 的 POST 請求"""
-    scraper = cloudscraper.create_scraper()
-    headers = {
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-    }
-
-    response = scraper.post(url, json=post_data, cookies=cookies, headers=headers)
-    return response
-
-def get_transaction_result(transactionId, cookies):
+def get_transaction_result(transactionId):
     """取得交易結果"""
     transactionId = transactionId.replace(":", "%3A")
     url = f"https://msu.io/marketplace/api/marketplace/transaction/{transactionId}/result"
 
-    scraper = cloudscraper.create_scraper()
-    response = scraper.get(url, cookies=cookies)
+    # 交易結果查詢需要認證
+    scraper = create_authenticated_scraper()
+    response = scraper.get(url)
 
     try:
         response.raise_for_status()
@@ -70,7 +221,7 @@ def get_transaction_result(transactionId, cookies):
 def fetch_all_pets():
     """取得所有寵物列表"""
     url = "https://msu.io/marketplace/api/marketplace/explore/items"
-    fetch_amount = 7
+    fetch_amount = 20
     payload = {
         "filter": {
             "categoryNo": 1000401001,
@@ -80,7 +231,8 @@ def fetch_all_pets():
         "paginationParam": {"pageNo": 1, "pageSize": fetch_amount},
     }
 
-    return fetch_url_using_cloudscraper("post", url, payload)
+    # 瀏覽市場不需要認證
+    return fetch_url_using_cloudscraper("post", url, payload, need_auth=False)
 
 def query_equipment(name = None):
     """查詢裝備列表"""
@@ -100,7 +252,8 @@ def query_equipment(name = None):
         "paginationParam": {"pageNo": 1, "pageSize": fetch_amount},
     }
 
-    return fetch_url_using_cloudscraper("post", url, payload)
+    # 查詢裝備不需要認證
+    return fetch_url_using_cloudscraper("post", url, payload, need_auth=False)
 
 def query_equipment_batch():
     """查詢所有最近上架的裝備"""
@@ -120,20 +273,22 @@ def query_equipment_batch():
         "paginationParam": {"pageNo": 1, "pageSize": fetch_amount},
     }
 
-    return fetch_url_using_cloudscraper("post", url, payload)
+    # 批量查詢不需要認證
+    return fetch_url_using_cloudscraper("post", url, payload, need_auth=False)
 
 def get_singal_pet_skill_info(tokenId: int):
     """取得單個寵物技能資訊"""
     url = f"https://msu.io/marketplace/api/marketplace/items/{tokenId}"
 
-    response = fetch_url_using_cloudscraper("get", url)
+    # 查詢單品資訊不需要認證
+    response = fetch_url_using_cloudscraper("get", url, need_auth=False)
     if response is None:
         return None
     else:
         pet_skills = response["item"]["pet"]["petSkills"]
         return pet_skills
 
-def buy_item_api(driver, tokenId, tokenAmount):
+def buy_item_api(tokenId, tokenAmount):
     """購買物品API"""
     # 計算時間戳記
     current_time = datetime.now(timezone.utc)
@@ -204,10 +359,9 @@ def buy_item_api(driver, tokenId, tokenAmount):
 
     url = f"https://msu.io/marketplace/api/marketplace/items/{tokenId}/buy" 
 
-    cookies = get_cookies_from_selenium(driver)
-
-    # 發送 POST 請求
-    response = send_post_with_cookies(url, post_data, cookies)
+    # 購買需要認證
+    scraper = create_authenticated_scraper()
+    response = scraper.post(url, json=post_data)
 
     # 檢查 HTTP 狀態碼
     try:
@@ -217,7 +371,7 @@ def buy_item_api(driver, tokenId, tokenAmount):
         transactionId = result["transactionId"]
         print(transactionId)
 
-        transaction_result_code = get_transaction_result(transactionId, cookies)
+        transaction_result_code = get_transaction_result(transactionId)
         for _ in range(6):
             if transaction_result_code == 2:
                 # Transaction status: 2 means success

@@ -18,25 +18,17 @@ def load_config():
         
         # 讀取所有設定項，不提供預設值
         private_key = config.get('private_key')
-        metamask_pasw = config.get('metamask_pasw')
-        chrome_path = config.get('chrome_path')
-        chromedriver_path = config.get('chromedriver_path')
-        user_data_dir = config.get('user_data_dir')
         wallet = config.get('wallet')
         
         # 檢查必要設定項是否存在
         missing_configs = []
         if not private_key: missing_configs.append('private_key')
-        if not metamask_pasw: missing_configs.append('metamask_pasw')
-        if not chrome_path: missing_configs.append('chrome_path')
-        if not chromedriver_path: missing_configs.append('chromedriver_path')
-        if not user_data_dir: missing_configs.append('user_data_dir')
         if not wallet: missing_configs.append('wallet')
         
         if missing_configs:
             raise ValueError(f"缺少必要的設定項: {', '.join(missing_configs)}")
         
-        return private_key, metamask_pasw, chrome_path, chromedriver_path, user_data_dir, wallet
+        return private_key, wallet
     except FileNotFoundError:
         raise FileNotFoundError("找不到config.json檔案，請先建立該檔案並填入必要的設定項")
     except json.JSONDecodeError:
@@ -46,7 +38,7 @@ def load_config():
 
 try:
     # 載入設定
-    PRIVATE_KEY, METAMASK_PASSWORD, CHROME_PATH, CHROMEDRIVER_PATH, USER_DATA_DIR, WALLET = load_config()
+    PRIVATE_KEY, WALLET = load_config()
 except Exception as e:
     print(f"錯誤: {e}")
     print("程式將結束")

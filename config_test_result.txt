@@ -1,0 +1,13 @@
+秨﹍代刚皌竚更
+config.json ゅン
+config.json ず甧: dict_keys(['private_key', 'wallet'])
+private_key: b29a3c...
+wallet: 0x0b78d14C3613Fca0569372aB2d43Fc609F6c05D6
+
+config 家舱旧Θ
+PRIVATE_KEY: b29a3c... (: 64)
+WALLET: 0x0b78d14C3613Fca0569372aB2d43Fc609F6c05D6
+TOKEN_ADDRESS: 0x07E49Ad54FcD23F6e7B911C2068F0148d1827c08
+NFT_ADDRESS: 0x43DCff2A0cedcd5e10e6f1c18b503498dDCe60d5
+
+代刚ЧΘ

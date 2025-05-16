@@ -1,13 +1,15 @@
 import os
 import argparse
-from driver import initialize_driver
 from buyer import auto_buy_pet, auto_buy_multiple_equipment
+from api import initialize_authentication, start_authentication_checker
 
 def main():
     """主程式入口"""
     parser = argparse.ArgumentParser(description='楓之谷N市集自動化交易工具')
     parser.add_argument('--mode', type=str, choices=['pet', 'multi_equipment'], 
                       default='pet', help='選擇執行模式: pet (寵物) 或 multi_equipment (多裝備同時監控)')
+    parser.add_argument('--auth-check-interval', type=int, default=5,
+                      help='認證狀態檢查間隔時間（分鐘），預設5分鐘')
     
     args = parser.parse_args()
     
@@ -16,28 +18,26 @@ def main():
         print("錯誤: 找不到config.json檔案")
         return
 
-    # 初始化驅動程式
-    driver = initialize_driver()
-    if driver is None:
-        print("初始化失敗，程式結束")
-        return
+    # 初始化認證會話
+    initialize_authentication()
     
+    # 啟動定期認證檢查線程
+    start_authentication_checker(interval_minutes=args.auth_check_interval)
+
     try:
         # 根據選擇的模式執行相應的功能
         if args.mode == 'pet':
-            auto_buy_pet(driver)
+            auto_buy_pet()
         elif args.mode == 'multi_equipment':
             print("啟動多裝備監控模式")
             print("注意: 多裝備模式將同時監控 config.py 中 EQUIPMENT_MONITOR_LIST 設定的所有裝備")
             print("      每種裝備可以設定各自的價格上限")
-            auto_buy_multiple_equipment(driver)
+            auto_buy_multiple_equipment()
     except KeyboardInterrupt:
         print("程式被手動中斷")
     except Exception as e:
         print(f"執行時發生錯誤: {e}")
     finally:
-        if driver:
-            driver.quit()
         print("程式已結束")
 
 if __name__ == "__main__":
