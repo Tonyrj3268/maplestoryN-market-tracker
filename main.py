@@ -1,7 +1,7 @@
 import os
 import argparse
 from buyer import auto_buy_pet, auto_buy_multiple_equipment
-from api import initialize_authentication, start_authentication_checker
+from api import initialize_authentication, start_authentication_checker, buy_item_api
 
 def main():
     """主程式入口"""

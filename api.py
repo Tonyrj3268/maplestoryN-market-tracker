@@ -234,41 +234,12 @@ def fetch_all_pets():
     # 瀏覽市場不需要認證
     return fetch_url_using_cloudscraper("post", url, payload, need_auth=False)
 
-def query_equipment(name = None):
-    """查詢裝備列表"""
-    url = "https://msu.io/marketplace/api/marketplace/explore/items"
-    fetch_amount = 5
-    payload = {
-        "filter": {
-            "name": name,
-            "categoryNo": 0,
-            "price": {"min": 0, "max": 10000000000},
-            "level": {"min": 0, "max": 250},
-            "starforce": {"min": 0, "max": 25},
-            "potential": {"min": 0, "max": 4},
-            "bonusPotential": {"min": 0, "max": 4},
-        },
-        "sorting": "ExploreSorting_LOWEST_PRICE",
-        "paginationParam": {"pageNo": 1, "pageSize": fetch_amount},
-    }
-
-    # 查詢裝備不需要認證
-    return fetch_url_using_cloudscraper("post", url, payload, need_auth=False)
-
 def query_equipment_batch():
     """查詢所有最近上架的裝備"""
     url = "https://msu.io/marketplace/api/marketplace/explore/items"
     fetch_amount = 135  # 一次查詢的數量
     payload = {
-        "filter": {
-            "name": None,  # 不指定具體名稱
-            "categoryNo": 0,
-            "price": {"min": 0, "max": 10000000000},
-            "level": {"min": 0, "max": 250},
-            "starforce": {"min": 0, "max": 25},
-            "potential": {"min": 0, "max": 4},
-            "bonusPotential": {"min": 0, "max": 4},
-        },
+        "filter": {},
         "sorting": "ExploreSorting_RECENTLY_LISTED",  # 按最近上架排序
         "paginationParam": {"pageNo": 1, "pageSize": fetch_amount},
     }
@@ -295,6 +266,9 @@ def buy_item_api(tokenId, tokenAmount):
     listing_time = int(current_time.timestamp())  # 秒級時間戳記
     expiration_time = int((current_time + timedelta(days=1)).timestamp())  # 一天後
     salt = int(current_time.timestamp() * 1000)  # 毫秒級時間戳記
+    # 合約地址
+    TOKEN_ADDRESS = "0x07E49Ad54FcD23F6e7B911C2068F0148d1827c08"
+    NFT_ADDRESS = "0x43DCff2A0cedcd5e10e6f1c18b503498dDCe60d5"
 
     # 建構 EIP-712 結構化資料
     full_message = {
@@ -329,9 +303,9 @@ def buy_item_api(tokenId, tokenAmount):
             "maker": config.WALLET.lower(),
             "listingTime": listing_time,
             "expirationTime": expiration_time,
-            "tokenAddress": config.TOKEN_ADDRESS.lower(),
+            "tokenAddress": TOKEN_ADDRESS.lower(),
             "tokenAmount": int(tokenAmount),
-            "nftAddress": config.NFT_ADDRESS.lower(),
+            "nftAddress": NFT_ADDRESS.lower(),
             "nftTokenId": int(tokenId),  # 轉換為整數
             "salt": salt,
         },
@@ -348,9 +322,9 @@ def buy_item_api(tokenId, tokenAmount):
             "maker": config.WALLET,
             "listingTime": str(full_message["message"]["listingTime"]),
             "expirationTime": str(full_message["message"]["expirationTime"]),
-            "tokenAddress": config.TOKEN_ADDRESS,
+            "tokenAddress": TOKEN_ADDRESS,
             "tokenAmount": str(full_message["message"]["tokenAmount"]),
-            "nftAddress": config.NFT_ADDRESS,
+            "nftAddress": NFT_ADDRESS,
             "nftTokenId": str(full_message["message"]["nftTokenId"]),
             "salt": str(full_message["message"]["salt"]), 
         },
@@ -371,16 +345,18 @@ def buy_item_api(tokenId, tokenAmount):
         transactionId = result["transactionId"]
         print(transactionId)
 
-        transaction_result_code = get_transaction_result(transactionId)
         for _ in range(6):
-            if transaction_result_code == 2:
+            transaction_result_code = get_transaction_result(transactionId)
+            if transaction_result_code == 1:
+                print("交易處理中...")
+                time.sleep(1)
+            elif transaction_result_code == 2:
                 # Transaction status: 2 means success
+                print("交易成功")
                 return True
-            
-            # Transaction status: 3 means error or waiting
-            time.sleep(1.5)
-        
-        return False
+            else:
+                print("交易失敗")
+                return False
 
     except json.JSONDecodeError as e:
         print("JSON解析錯誤:", e)
