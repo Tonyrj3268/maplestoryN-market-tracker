@@ -1,15 +1,13 @@
 import os
 import argparse
 from buyer import auto_buy_pet, auto_buy_multiple_equipment
-from api import initialize_authentication, start_authentication_checker, buy_item_api
+from api import initialize_authentication, buy_item_api
 
 def main():
     """主程式入口"""
     parser = argparse.ArgumentParser(description='楓之谷N市集自動化交易工具')
     parser.add_argument('--mode', type=str, choices=['pet', 'equipment'], 
-                      default='pet', help='選擇執行模式: pet (寵物) 或 equipment (多裝備同時監控)')
-    parser.add_argument('--auth-check-interval', type=int, default=5,
-                      help='認證狀態檢查間隔時間（分鐘），預設5分鐘')
+                      default='pet', help='選擇執行模式: pet (寵物), equipment (多裝備同時監控)')
     
     args = parser.parse_args()
     
@@ -20,9 +18,6 @@ def main():
 
     # 初始化認證會話
     initialize_authentication()
-    
-    # 啟動定期認證檢查線程
-    start_authentication_checker(interval_minutes=args.auth_check_interval)
 
     try:
         # 根據選擇的模式執行相應的功能

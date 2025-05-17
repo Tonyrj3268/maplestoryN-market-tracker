@@ -27,6 +27,37 @@ def initialize_authentication():
         print(f"初始化認證失敗: {e}")
         return False
 
+# 檢查JWT是否有效
+def is_jwt_valid(scraper):
+    """檢查JWT憑證是否有效
+    
+    Args:
+        scraper: 要檢查的scraper實例
+        
+    Returns:
+        True: JWT有效
+        False: JWT無效或丟失
+    """
+    if scraper is None:
+        return False
+        
+    try:
+        # 使用API檢查認證狀態
+        test_url = "https://msu.io/api/bff/users/me"
+        response = scraper.get(test_url, allow_redirects=False)
+        
+        # 檢查回應內容是否包含JWT錯誤
+        response_text = response.text
+        if "Jwt is missing" in response_text:
+            print("JWT 憑證過期或丟失")
+            return False
+        else:
+            # 其他情況認為認證有效
+            return True
+    except Exception as e:
+        print(f"檢查JWT狀態時出錯: {e}")
+        return False
+
 # 檢查認證狀態並在需要時重新驗證
 def check_and_refresh_authentication():
     """檢查認證狀態，如果過期則重新認證"""
@@ -43,48 +74,17 @@ def check_and_refresh_authentication():
                 print(f"創建認證會話失敗: {e}")
                 return False
         
-        try:
-            # 使用API檢查認證狀態
-            test_url = "https://msu.io/api/bff/users/me"
-            response = _AUTHENTICATED_SCRAPER.get(test_url, allow_redirects=False)
-            
-            # 檢查回應內容是否包含JWT錯誤
-            response_text = response.text
-            if "Jwt is missing" in response_text:
-                print("JWT 憑證過期或丟失，重新認證中...")
-                _AUTHENTICATED_SCRAPER = create_authenticated_scraper()
-                return True
-            else:
-                # 其他情況認為認證有效
-                print("認證會話狀態檢查：有效")
-                return True
-        except Exception as e:
-            print(f"檢查認證狀態時出錯: {e}，嘗試重新認證...")
+        # 使用共用函數檢查JWT有效性
+        if is_jwt_valid(_AUTHENTICATED_SCRAPER):
+            return True
+        else:
+            print("重新認證中...")
             try:
                 _AUTHENTICATED_SCRAPER = create_authenticated_scraper()
                 return True
-            except:
+            except Exception:
                 print("重新認證失敗")
                 return False
-
-# 啟動定期檢查認證的線程
-def start_authentication_checker(interval_minutes=5):
-    """啟動一個後台線程，定期檢查並刷新認證狀態
-    
-    Args:
-        interval_minutes: 檢查間隔，單位為分鐘，預設5分鐘
-    """
-    def checker_thread():
-        while True:
-            time.sleep(interval_minutes * 60)  # 轉換為秒
-            print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 定期檢查認證狀態...")
-            check_and_refresh_authentication()
-    
-    # 創建並啟動線程
-    print(f"啟動認證狀態檢查線程 (間隔: {interval_minutes}分鐘)")
-    t = threading.Thread(target=checker_thread, daemon=True)
-    t.start()
-    return t
 
 # 創建或獲取普通scraper（不需認證）
 def get_regular_scraper():
@@ -100,19 +100,11 @@ def create_authenticated_scraper():
     
     # 檢查是否已有有效的scraper實例
     if _AUTHENTICATED_SCRAPER is not None:
-        # 檢查是否仍然有效
-        try:
-            # 檢查認證狀態
-            test_url = "https://msu.io/api/bff/users/me"
-            response = _AUTHENTICATED_SCRAPER.get(test_url, allow_redirects=False)
-            
-            # 如果是200，表示認證有效；如果是307，表示需要重新登入
-            if response.status_code == 200:
-                return _AUTHENTICATED_SCRAPER
-            else:
-                print(f"會話已過期 (狀態碼: {response.status_code})，重新登入中...")
-        except Exception as e:
-            print(f"檢查會話狀態時出錯: {e}，重新登入中...")
+        # 使用共用函數檢查JWT有效性
+        if is_jwt_valid(_AUTHENTICATED_SCRAPER):
+            return _AUTHENTICATED_SCRAPER
+        else:
+            print("重新登入中...")
     
     # 建立新的scraper實例並進行認證
     scraper = cloudscraper.create_scraper()
@@ -222,6 +214,9 @@ def get_transaction_result(transactionId):
 
 def fetch_all_pets():
     """取得所有寵物列表"""
+    # 每次獲取前檢查認證狀態
+    check_and_refresh_authentication()
+    
     url = "https://msu.io/marketplace/api/marketplace/explore/items"
     fetch_amount = 15
     payload = {
@@ -238,6 +233,9 @@ def fetch_all_pets():
 
 def query_equipment_batch():
     """查詢所有最近上架的裝備"""
+    # 每次獲取前檢查認證狀態
+    check_and_refresh_authentication()
+    
     url = "https://msu.io/marketplace/api/marketplace/explore/items"
     fetch_amount = 135  # 一次查詢的數量
     payload = {
