@@ -21,8 +21,8 @@ def auto_buy_pet():
         print(f"│ {skills:<31} │ {price_limit:<9} │")
     print("└─────────────────────────────────┴───────────┘\n")
     
-    # 上次擷取到的寵物ID
-    last_pet_token_id = None
+    # 上次擷取到的寵物ID集合，用於追蹤已處理過的寵物
+    processed_pet_ids = set()
 
     while True:
         try:
@@ -32,17 +32,34 @@ def auto_buy_pet():
                 continue
             else:
                 all_pets_list = all_pets_list["items"]
-                first_pet_id = all_pets_list[0]["tokenId"]
-
+                
+            # 檢查是否有新寵物
+            has_new_pets = False
+            current_pet_ids = {pet["tokenId"] for pet in all_pets_list}
+            
+            # 找出新寵物（當前批次中但不在已處理集合中的寵物）
+            new_pet_ids = current_pet_ids - processed_pet_ids
+            if new_pet_ids:
+                has_new_pets = True
+            
+            # 如果沒有新寵物，等待下一次查詢
+            if not has_new_pets:
+                time.sleep(8)
+                continue
+                
             for pet in all_pets_list:
                 tokenId = pet["tokenId"]
-                # 遇到上一次擷取過的寵物就停止
-                if last_pet_token_id == tokenId:
-                    break
-
+                
+                # 跳過已處理的寵物
+                if tokenId in processed_pet_ids:
+                    continue
+                    
+                # 將當前寵物ID添加到已處理集合
+                processed_pet_ids.add(tokenId)
+                
                 skill_info = get_singal_pet_skill_info(tokenId)
                 if skill_info is None:
-                    # 沒有擷取到值時跳過當次迴圈
+                    # 沒有擷取到值時跳過當前寵物
                     continue
 
                 pet_skills = set(skill_info)
@@ -87,9 +104,12 @@ def auto_buy_pet():
                             break
 
                 time.sleep(0.1)
-
-            last_pet_token_id = first_pet_id
-
+            
+            # 控制已處理寵物ID集合大小，避免無限增長
+            if len(processed_pet_ids) > 1000:
+                # 只保留最近500個處理過的ID
+                processed_pet_ids = set(list(processed_pet_ids)[-500:])
+                
             time.sleep(8)
         except KeyboardInterrupt:
             print("程式被手動中斷")
@@ -123,8 +143,8 @@ def auto_buy_multiple_equipment():
         print(f"│ {name:<31} │ {price:<9} │")
     print("└─────────────────────────────────┴───────────┘\n")
     
-    # 上次擷取到的裝備ID
-    last_item_token_id = None
+    # 已處理裝備ID集合，用於追蹤已處理過的裝備
+    processed_item_ids = set()
     
     while True:
         try:
@@ -132,9 +152,22 @@ def auto_buy_multiple_equipment():
             all_items = query_equipment_batch()
             if all_items:
                 all_items = all_items["items"]
-                first_item_id = all_items[0]["tokenId"] if all_items else None
             else:
                 # 如果沒有裝備，則等待下一次查詢
+                time.sleep(8)
+                continue
+                
+            # 檢查是否有新裝備
+            has_new_items = False
+            current_item_ids = {item["tokenId"] for item in all_items}
+            
+            # 找出新裝備（當前批次中但不在已處理集合中的裝備）
+            new_item_ids = current_item_ids - processed_item_ids
+            if new_item_ids:
+                has_new_items = True
+            
+            # 如果沒有新裝備，等待下一次查詢
+            if not has_new_items:
                 time.sleep(8)
                 continue
             
@@ -142,9 +175,12 @@ def auto_buy_multiple_equipment():
                 item_name = item.get("name", "")
                 token_id = item["tokenId"]
                 
-                # 遇到上一次擷取過的裝備就停止
-                if last_item_token_id == token_id:
-                    break
+                # 跳過已處理的裝備
+                if token_id in processed_item_ids:
+                    continue
+                    
+                # 將當前裝備ID添加到已處理集合
+                processed_item_ids.add(token_id)
                 
                 # 計算價格 (Wei → 遊戲幣)
                 price_wei = item["salesInfo"]["priceWei"]
@@ -183,8 +219,10 @@ def auto_buy_multiple_equipment():
                                 config.update_wallet_balance()
                             break
             
-            # 更新上次擷取的第一個裝備ID
-            last_item_token_id = first_item_id
+            # 控制已處理裝備ID集合大小，避免無限增長
+            if len(processed_item_ids) > 1000:
+                # 只保留最近500個處理過的ID
+                processed_item_ids = set(list(processed_item_ids)[-500:])
             
             # 適當休息，避免頻繁API呼叫
             time.sleep(8)

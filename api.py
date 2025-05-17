@@ -12,7 +12,6 @@ import config
 _AUTHENTICATED_SCRAPER = None
 _LAST_AUTH_TIME = None
 _REGULAR_SCRAPER = None
-_AUTH_LOCK = threading.Lock()  # 用於確保認證操作的線程安全
 
 # 初始化認證（在程式啟動時調用）
 def initialize_authentication():
@@ -63,28 +62,27 @@ def check_and_refresh_authentication():
     """檢查認證狀態，如果過期則重新認證"""
     global _AUTHENTICATED_SCRAPER
     
-    with _AUTH_LOCK:  # 使用鎖，確保同一時間只有一個線程修改認證狀態
-        if _AUTHENTICATED_SCRAPER is None:
-            print("認證會話不存在，正在創建新會話...")
-            try:
-                _AUTHENTICATED_SCRAPER = create_authenticated_scraper()
-                print("已創建新的認證會話")
-                return True
-            except Exception as e:
-                print(f"創建認證會話失敗: {e}")
-                return False
-        
-        # 使用共用函數檢查JWT有效性
-        if is_jwt_valid(_AUTHENTICATED_SCRAPER):
+    if _AUTHENTICATED_SCRAPER is None:
+        print("認證會話不存在，正在創建新會話...")
+        try:
+            _AUTHENTICATED_SCRAPER = create_authenticated_scraper()
+            print("已創建新的認證會話")
             return True
-        else:
-            print("重新認證中...")
-            try:
-                _AUTHENTICATED_SCRAPER = create_authenticated_scraper()
-                return True
-            except Exception:
-                print("重新認證失敗")
-                return False
+        except Exception as e:
+            print(f"創建認證會話失敗: {e}")
+            return False
+    
+    # 使用共用函數檢查JWT有效性
+    if is_jwt_valid(_AUTHENTICATED_SCRAPER):
+        return True
+    else:
+        print("重新認證中...")
+        try:
+            _AUTHENTICATED_SCRAPER = create_authenticated_scraper()
+            return True
+        except Exception:
+            print("重新認證失敗")
+            return False
 
 # 創建或獲取普通scraper（不需認證）
 def get_regular_scraper():
@@ -218,7 +216,7 @@ def fetch_all_pets():
     check_and_refresh_authentication()
     
     url = "https://msu.io/marketplace/api/marketplace/explore/items"
-    fetch_amount = 15
+    fetch_amount = 20
     payload = {
         "filter": {
             "categoryNo": 1000401001,
@@ -241,7 +239,9 @@ def query_equipment_batch():
     # 最近上架：RECENTLY_LISTED
     # 最低價：LOWEST_PRICE
     payload = {
-        "filter": {},
+        "filter": {
+            "price": {"min": 0, "max": 10000000000}
+        },
         "sorting": "ExploreSorting_RECENTLY_LISTED",
         "paginationParam": {"pageNo": 1, "pageSize": fetch_amount},
     }
