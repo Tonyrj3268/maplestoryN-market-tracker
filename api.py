@@ -44,17 +44,19 @@ def check_and_refresh_authentication():
                 return False
         
         try:
-            # 使用mypage/settings頁面檢查認證狀態
-            test_url = "https://msu.io/mypage/settings"
+            # 使用API檢查認證狀態
+            test_url = "https://msu.io/api/bff/users/me"
             response = _AUTHENTICATED_SCRAPER.get(test_url, allow_redirects=False)
             
-            # 如果是200，表示認證有效
-            if response.status_code == 200:
-                print("認證會話狀態檢查：有效")
+            # 檢查回應內容是否包含JWT錯誤
+            response_text = response.text
+            if "Jwt is missing" in response_text:
+                print("JWT 憑證過期或丟失，重新認證中...")
+                _AUTHENTICATED_SCRAPER = create_authenticated_scraper()
                 return True
             else:
-                print(f"認證會話已過期 (狀態碼: {response.status_code})，重新認證中...")
-                _AUTHENTICATED_SCRAPER = create_authenticated_scraper()
+                # 其他情況認為認證有效
+                print("認證會話狀態檢查：有效")
                 return True
         except Exception as e:
             print(f"檢查認證狀態時出錯: {e}，嘗試重新認證...")
@@ -100,8 +102,8 @@ def create_authenticated_scraper():
     if _AUTHENTICATED_SCRAPER is not None:
         # 檢查是否仍然有效
         try:
-            # 使用mypage/settings頁面檢查認證狀態
-            test_url = "https://msu.io/mypage/settings"
+            # 檢查認證狀態
+            test_url = "https://msu.io/api/bff/users/me"
             response = _AUTHENTICATED_SCRAPER.get(test_url, allow_redirects=False)
             
             # 如果是200，表示認證有效；如果是307，表示需要重新登入
@@ -364,3 +366,30 @@ def buy_item_api(tokenId, tokenAmount):
     except Exception as e:
         print(f"HTTP錯誤 {response.status_code}: {response.text}")
         return False 
+
+def get_wallet_balance():
+    """獲取用戶錢包餘額
+    
+    返回：
+        成功時返回餘額（以遊戲幣為單位）
+        失敗時返回None
+    """
+    url = f"https://msu.io/marketplace/api/gateway/bcbackend/next-meso/balance/{config.WALLET}"
+    
+    try:
+        # 使用無需認證的scraper
+        scraper = get_regular_scraper()
+        response = scraper.get(url)
+        response.raise_for_status()
+        
+        # 解析返回的餘額
+        result = response.json()
+        balance_wei = result.get("balance", "0")
+        
+        # 轉換為遊戲幣單位
+        balance = int(int(balance_wei) / config.WEI_PER_ETHER)
+        
+        return balance
+    except Exception as e:
+        print(f"獲取錢包餘額失敗: {e}")
+        return None 
