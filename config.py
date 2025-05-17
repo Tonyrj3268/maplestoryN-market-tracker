@@ -9,6 +9,9 @@ WEI_PER_ETHER = Decimal("1000000000000000000")
 TOKEN_ADDRESS = "0x07E49Ad54FcD23F6e7B911C2068F0148d1827c08"
 NFT_ADDRESS = "0x43DCff2A0cedcd5e10e6f1c18b503498dDCe60d5"
 
+# 錢包餘額（遊戲幣）
+WALLET_BALANCE = 0
+
 # 從設定檔讀取設定
 def load_config():
     config_path = os.path.join(os.path.dirname(__file__), 'config.json')
@@ -36,6 +39,21 @@ def load_config():
     except Exception as e:
         raise Exception(f"載入設定時發生錯誤: {e}")
 
+# 更新錢包餘額
+def update_wallet_balance():
+    """
+    更新全域錢包餘額變數
+    """
+    global WALLET_BALANCE
+    # 避免循環引用，在函數內部導入
+    from api import get_wallet_balance
+    
+    balance = get_wallet_balance()
+    if balance is not None:
+        WALLET_BALANCE = balance
+        print(f"錢包餘額更新: {WALLET_BALANCE:,} NESO")
+    return balance
+
 try:
     # 載入設定
     PRIVATE_KEY, WALLET = load_config()
@@ -47,15 +65,11 @@ except Exception as e:
 
 # 寵物篩選條件: [{技能}, 可接受最高價格]
 PET_FILTERS = [
-    [{"Magnet Effect"}, 385501],
-    [{"Auto Buff"}, 385501],
-    [{"Expanded Auto Move", "Auto Move"}, 100000],
+    [{"Magnet Effect"}, None],
+    [{"Auto Buff"}, None],
+    [{"Expanded Auto Move", "Auto Move"}, 200000],
     [set({}), 40000]  # 完全不符合
 ]
-
-# 多裝備監控模式的預設價格上限
-# 若EQUIPMENT_MONITOR_LIST中的裝備沒有指定價格，則使用此值
-DEFAULT_EQUIPMENT_PRICE_LIMIT = 380000
 
 # 多裝備監控列表：設定要監控的裝備名稱及對應的價格上限
 # 格式: "裝備名稱": 價格上限
@@ -63,7 +77,7 @@ DEFAULT_EQUIPMENT_PRICE_LIMIT = 380000
 #   1. 使用 python main.py --mode equipment 啟動多裝備監控模式
 #   2. 系統會同時監控下列所有裝備
 #   3. 當市場上出現包含下列名稱的裝備，且價格低於設定的上限時，將自動購買
-#   4. 若某裝備的價格上限設為None，則會使用DEFAULT_EQUIPMENT_PRICE_LIMIT作為上限
+#   4. 若某裝備的價格上限設為None，則會使用當前錢包餘額作為上限
 EQUIPMENT_MONITOR_LIST = {
     "Golden Clover Belt": 200000,
     "Noble Ifia's Ring": None,

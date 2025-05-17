@@ -6,6 +6,9 @@ from api import fetch_all_pets, get_singal_pet_skill_info, buy_item_api, query_e
 def auto_buy_pet():
     """自動購買寵物"""
     print("開始自動購買寵物模式")
+
+    # 更新並顯示當前錢包餘額
+    config.update_wallet_balance()
     
     # 顯示篩選條件
     print("\n寵物篩選條件:")
@@ -14,7 +17,7 @@ def auto_buy_pet():
     print("├─────────────────────────────────┼───────────┤")
     for filter_set in config.PET_FILTERS:
         skills = ", ".join(filter_set[0]) if filter_set[0] else "None"
-        price_limit = filter_set[1] if filter_set[1] is not None else "動態"
+        price_limit = filter_set[1] if filter_set[1] is not None else config.WALLET_BALANCE
         print(f"│ {skills:<31} │ {price_limit:<9} │")
     print("└─────────────────────────────────┴───────────┘\n")
     
@@ -53,8 +56,8 @@ def auto_buy_pet():
                     # 檢查 filter_set 是否在 pet_skills 中
                     if filter_set[0].issubset(pet_skills):
                         price = Decimal(pet["salesInfo"]["priceWei"]) / config.WEI_PER_ETHER
-                        # 使用動態價格上限，如果價格上限為None
-                        price_limit = filter_set[1] if filter_set[1] is not None else config.get_current_price_limit()
+                        # 使用指定價格上限或當前錢包餘額
+                        price_limit = filter_set[1] if filter_set[1] is not None else config.WALLET_BALANCE
                         
                         print(f"匹配條件: {', '.join(filter_set[0]) if filter_set[0] else '無技能':<20} | 價格: {price:<8} | 上限: {price_limit:<8}")
                         
@@ -66,11 +69,21 @@ def auto_buy_pet():
                             print(f"價格: {price} (上限: {price_limit})")
                             print(f"技能: {', '.join(pet_skills)}")
                             print(f"連結: https://msu.io/marketplace/nft/{tokenId}")
+                            
+                            # 檢查餘額是否足夠
+                            if config.WALLET_BALANCE < price:
+                                print(f"餘額不足！當前餘額: {config.WALLET_BALANCE:,}，需要: {price:,}")
+                                print("交易已跳過")
+                                print("-" * 70)
+                                break
+                                
                             print("-" * 70)
                     
                             result = buy_item_api(tokenId, pet["salesInfo"]["priceWei"])
                             if result:
                                 print(f"已成功購買寵物 (ID: {tokenId})")
+                                # 購買成功後更新錢包餘額
+                                config.update_wallet_balance()
                             break
 
                 time.sleep(0.1)
@@ -92,9 +105,12 @@ def auto_buy_multiple_equipment():
     
     print(f"開始自動監測多裝備模式: 監測 {len(equipment_list)} 個裝備")
     
+    # 更新並顯示當前錢包餘額
+    config.update_wallet_balance()
+    
     # 顯示監控的裝備和價格上限
     equipment_price_limits = {
-        name: price if price is not None else "動態" 
+        name: price if price is not None else config.WALLET_BALANCE 
         for name, price in config.EQUIPMENT_MONITOR_LIST.items()
     }
     
@@ -114,15 +130,11 @@ def auto_buy_multiple_equipment():
         try:
             # 獲取最新裝備列表
             all_items = query_equipment_batch()
-            if all_items is None:
-                time.sleep(3)
-                continue
-            else:
+            if all_items:
                 all_items = all_items["items"]
                 first_item_id = all_items[0]["tokenId"] if all_items else None
-            
-            # 如果沒有裝備，則等待下一次查詢
-            if not all_items:
+            else:
+                # 如果沒有裝備，則等待下一次查詢
                 time.sleep(8)
                 continue
             
@@ -141,9 +153,9 @@ def auto_buy_multiple_equipment():
                 # 檢查是否匹配任何監控的裝備
                 for equip_name in equipment_list:
                     if equip_name in item_name:
-                        # 獲取價格上限，如果是None則使用動態價格
+                        # 獲取價格上限，如果是None則使用當前錢包餘額
                         config_price = config.EQUIPMENT_MONITOR_LIST[equip_name]
-                        price_limit = config_price if config_price is not None else config.get_current_price_limit()
+                        price_limit = config_price if config_price is not None else config.WALLET_BALANCE
                         
                         # 使用固定寬度格式化輸出
                         print(f"裝備: {item_name:<30} | 價格: {price:<8} | 上限: {price_limit:<8}")
@@ -155,10 +167,20 @@ def auto_buy_multiple_equipment():
                             print(f"名稱: {item_name}")
                             print(f"價格: {price} (上限: {price_limit})")
                             print(f"連結: https://msu.io/marketplace/nft/{token_id}")
+                            
+                            # 檢查餘額是否足夠
+                            if config.WALLET_BALANCE < price:
+                                print(f"餘額不足！當前餘額: {config.WALLET_BALANCE:,}，需要: {price:,}")
+                                print("交易已跳過")
+                                print("-" * 70)
+                                break
+                                
                             print("-" * 70)
                             
                             if buy_item_api(token_id, price_wei):
                                 print(f"已成功購買 {item_name}")
+                                # 購買成功後更新錢包餘額
+                                config.update_wallet_balance()
                             break
             
             # 更新上次擷取的第一個裝備ID
