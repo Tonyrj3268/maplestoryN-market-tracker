@@ -100,22 +100,15 @@ def create_authenticated_scraper():
     if _AUTHENTICATED_SCRAPER is not None:
         # 檢查是否仍然有效
         try:
-            # 檢查認證狀態
-            test_url = "https://msu.io/marketplace/api/marketplace/transaction/MPE:246ba585-b092-4d2d-adbd-8351ab63e7c9/result"
-            response = _AUTHENTICATED_SCRAPER.get(test_url)
+            # 使用mypage/settings頁面檢查認證狀態
+            test_url = "https://msu.io/mypage/settings"
+            response = _AUTHENTICATED_SCRAPER.get(test_url, allow_redirects=False)
             
-            # 解析回應內容，API回傳狀態碼通常是200，但需檢查內容
-            try:
-                result = response.json()
-                # 只有當回應為 {"code":3,"message":"Jwt is missing"} 時才重新登入
-                if result.get("code") == 3 and result.get("message") == "Jwt is missing":
-                    print("JWT 憑證過期或丟失，需要重新登入...")
-                else:
-                    # 其他情況認為認證有效
-                    return _AUTHENTICATED_SCRAPER
-            except ValueError:
-                # 如果不能解析為JSON，默認認為認證有效
+            # 如果是200，表示認證有效；如果是307，表示需要重新登入
+            if response.status_code == 200:
                 return _AUTHENTICATED_SCRAPER
+            else:
+                print(f"會話已過期 (狀態碼: {response.status_code})，重新登入中...")
         except Exception as e:
             print(f"檢查會話狀態時出錯: {e}，重新登入中...")
     
@@ -245,8 +238,6 @@ def query_equipment_batch():
     """查詢所有最近上架的裝備"""
     url = "https://msu.io/marketplace/api/marketplace/explore/items"
     fetch_amount = 135  # 一次查詢的數量
-    # RECENTLY_LISTED: 最近上架
-    # LOWEST_PRICE: 價格低到高
     payload = {
         "filter": {},
         "sorting": "ExploreSorting_RECENTLY_LISTED",  # 按最近上架排序
@@ -373,30 +364,3 @@ def buy_item_api(tokenId, tokenAmount):
     except Exception as e:
         print(f"HTTP錯誤 {response.status_code}: {response.text}")
         return False 
-
-def get_wallet_balance():
-    """獲取用戶錢包餘額
-    
-    返回：
-        成功時返回餘額（以遊戲幣為單位）
-        失敗時返回None
-    """
-    url = f"https://msu.io/marketplace/api/gateway/bcbackend/next-meso/balance/{config.WALLET}"
-    
-    try:
-        # 使用無需認證的scraper
-        scraper = get_regular_scraper()
-        response = scraper.get(url)
-        response.raise_for_status()
-        
-        # 解析返回的餘額
-        result = response.json()
-        balance_wei = result.get("balance", "0")
-        
-        # 轉換為遊戲幣單位
-        balance = int(int(balance_wei) / config.WEI_PER_ETHER)
-        
-        return balance
-    except Exception as e:
-        print(f"獲取錢包餘額失敗: {e}")
-        return None 
