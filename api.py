@@ -48,7 +48,7 @@ def is_jwt_valid(scraper):
         
         # 檢查回應內容是否包含JWT錯誤
         response_text = response.text
-        if "Jwt is missing" in response_text:
+        if "Jwt is missing" in response_text or "Jwt is expired" in response_text or "code\":3" in response_text:
             print("JWT 憑證過期或丟失")
             return False
         else:
@@ -238,9 +238,11 @@ def query_equipment_batch():
     
     url = "https://msu.io/marketplace/api/marketplace/explore/items"
     fetch_amount = 135  # 一次查詢的數量
+    # 最近上架：RECENTLY_LISTED
+    # 最低價：LOWEST_PRICE
     payload = {
         "filter": {},
-        "sorting": "ExploreSorting_RECENTLY_LISTED",  # 按最近上架排序
+        "sorting": "ExploreSorting_RECENTLY_LISTED",
         "paginationParam": {"pageNo": 1, "pageSize": fetch_amount},
     }
 
