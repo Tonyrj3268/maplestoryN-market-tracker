@@ -245,6 +245,8 @@ def query_equipment_batch():
     """查詢所有最近上架的裝備"""
     url = "https://msu.io/marketplace/api/marketplace/explore/items"
     fetch_amount = 135  # 一次查詢的數量
+    # RECENTLY_LISTED: 最近上架
+    # LOWEST_PRICE: 價格低到高
     payload = {
         "filter": {},
         "sorting": "ExploreSorting_RECENTLY_LISTED",  # 按最近上架排序
